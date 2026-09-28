@@ -1,8 +1,6 @@
 <?php
-// Se a requisição vier via AJAX pedindo JSON, processa as consultas SNMP e retorna os dados
 if (isset($_GET['ajax']) &&$_GET['ajax'] == '1') {
     header('Content-Type: application/json');
-    
     $stations = [
         ["id" => 1, "name" => "Estação Gerenciada 1", "ip" => "10.2.168.242", "community" => "public"],
         ["id" => 2, "name" => "Estação Gerenciada 2", "ip" => "10.2.169.29", "community" => "public"],
@@ -15,36 +13,38 @@ if (isset($_GET['ajax']) &&$_GET['ajax'] == '1') {
     function getSnmpData($ip, $oid,$community = "public") {
         $cmd = "snmpget -v2c -c $community -t 1 -r 1 $ip$oid 2>&1";
         $output = shell_exec($cmd);
-        if ($output && strpos($output, "Timeout") === false && strpos($output, "No Response") === false) {
-            $parts = explode("=", $output);
-            if (isset($parts[1])) {
-                return trim($parts[1]);
-            }
+        if (!$output || strpos($output, "Timeout") !== false \vert{}\vert{} strpos($output, "No Response") !== false || strpos($output, "Usage:") !== false \vert{}\vert{} strpos($output, "value) x:") !== false) {
+            return null;
+        }
+        $parts = explode("=", $output);
+        if (isset($parts[1])) {
+            return trim($parts[1]);
         }
         return null;
     }
 
     function formatBytes($bytes) {
-        if ($bytes >= 1073741824) {
-            return number_format($bytes / 1073741824, 2) . ' GB';
-        } elseif ($bytes >= 1048576) {
-            return number_format($bytes / 1048576, 2) . ' MB';
-        } elseif ($bytes >= 1024) {
-            return number_format($bytes / 1024, 2) . ' KB';
-        } else {
-            return $bytes . ' bytes';
-        }
+        if ($bytes >= 1073741824) return number_format($bytes / 1073741824, 2) . ' GB';
+        elseif ($bytes >= 1048576) return number_format($bytes / 1048576, 2) . ' MB';
+        elseif ($bytes >= 1024) return number_format($bytes / 1024, 2) . ' KB';
+        else return $bytes . ' bytes';
     }
 
     $results = [];
-
     foreach ($stations as$st) {
         $ip =$st["ip"];
         $community =$st["community"];
         
-        // a) Descrição
-        $rawDescr = getSnmpData($ip, "1.3.6.1.2.1.1.1.0", $community);$sysDescr = $rawDescr ? str_replace("STRING: ", "", $rawDescr) : "Offline / Sem Resposta";
-        $isOnline = ($sysDescr != "Offline / Sem Resposta");
+        // a) Descrição com sanitização ajustada para remover o prefixo e as aspas
+        $rawDescr = getSnmpData($ip, "1.3.6.1.2.1.1.1.0", $community);
+        if ($rawDescr) {
+            $sysDescr = preg_replace('/^(STRING\vert{}Hex-STRING\vert{}INTEGER\vert{}Counter32\vert{}Timeticks):\s*/i', '',$rawDescr);
+            $sysDescr = trim($sysDescr, '"'); // Remove aspas do início e fim
+            $isOnline = true;
+        } else {
+            $sysDescr = "Offline / Sem Resposta";
+            $isOnline = false;
+        }
 
         // b) CPU
         $rawCpu = getSnmpData($ip, "1.3.6.1.2.1.25.3.3.1.2.1", $community);$cpuLoad = $rawCpu ? intval(filter_var($rawCpu, FILTER_SANITIZE_NUMBER_INT)) : 0;
@@ -69,23 +69,13 @@ if (isset($_GET['ajax']) &&$_GET['ajax'] == '1') {
         $diskPercent =$diskTotalBytes > 0 ? round(($diskUsedBytes / $diskTotalBytes) * 100, 1) : 0;
 
         $results[] = [
-            "id" => $st["id"],
-            "name" => $st["name"],
-            "ip" => $ip,
-            "isOnline" => $isOnline,
-            "sysDescr" => $sysDescr,
-            "cpuLoad" => $cpuLoad,
-            "memPercent" => $memPercent,
-            "memUsed" => formatBytes($memUsed),
-            "memTotal" => formatBytes($memTotal),
-            "netIn" => $netIn,
-            "netOut" => $netOut,
-            "diskPercent" => $diskPercent,
-            "diskFree" => formatBytes($diskFreeBytes),
-            "diskTotal" => formatBytes($diskTotalBytes)
+            "id" => $st["id"], "name" => $st["name"], "ip" => $ip, "isOnline" => $isOnline,
+            "sysDescr" => $sysDescr, "cpuLoad" => $cpuLoad, "memPercent" => $memPercent,
+            "memUsed" => formatBytes($memUsed), "memTotal" => formatBytes($memTotal),
+            "netIn" => $netIn, "netOut" => $netOut, "diskPercent" => $diskPercent,
+            "diskFree" => formatBytes($diskFreeBytes), "diskTotal" => formatBytes($diskTotalBytes)
         ];
     }
-
     echo json_encode($results);
     exit;
 }
@@ -106,7 +96,6 @@ if (isset($_GET['ajax']) &&$_GET['ajax'] == '1') {
             </div>
             <div id="status-sync" class="spinner-border text-primary spinner-border-sm" role="status" title="Atualizando..."></div>
         </header>
-
         <div class="row" id="dashboard-container">
             <div class="text-center py-5">
                 <div class="spinner-border text-primary" role="status"></div>
@@ -114,22 +103,18 @@ if (isset($_GET['ajax']) &&$_GET['ajax'] == '1') {
             </div>
         </div>
     </div>
-
     <script>
         function fetchNmsData() {
             const spinner = document.getElementById('status-sync');
             spinner.style.display = 'inline-block';
-
             fetch('index.php?ajax=1')
                 .then(response => response.json())
                 .then(data => {
                     const container = document.getElementById('dashboard-container');
                     container.innerHTML = '';
-
                     data.forEach(st => {
                         const borderClass = st.isOnline ? 'success' : 'danger';
                         const badgeClass = st.isOnline ? 'success' : 'danger';
-
                         const cardHTML = `
                             <div class="col-md-4 mb-4">
                                 <div class="card shadow-sm h-100 border-${borderClass}">
@@ -180,11 +165,7 @@ if (isset($_GET['ajax']) &&$_GET['ajax'] == '1') {
                     spinner.style.display = 'none';
                 });
         }
-
-        // Executa ao carregar a página
         fetchNmsData();
-
-        // Repete a cada 10 segundos
         setInterval(fetchNmsData, 10000);
     </script>
 </body>
