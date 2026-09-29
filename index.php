@@ -35,32 +35,27 @@ if (isset($_GET['ajax']) &&$_GET['ajax'] == '1') {
         $ip =$st["ip"];
         $community =$st["community"];
         
-        // a) Descrição com sanitização ajustada para remover o prefixo e as aspas
         $rawDescr = getSnmpData($ip, "1.3.6.1.2.1.1.1.0", $community);
         if ($rawDescr) {
             $sysDescr = preg_replace('/^(STRING\vert{}Hex-STRING\vert{}INTEGER\vert{}Counter32\vert{}Timeticks):\s*/i', '',$rawDescr);
-            $sysDescr = trim($sysDescr, '"'); // Remove aspas do início e fim
+            $sysDescr = trim($sysDescr, '"');
             $isOnline = true;
         } else {
             $sysDescr = "Offline / Sem Resposta";
             $isOnline = false;
         }
 
-        // b) CPU
         $rawCpu = getSnmpData($ip, "1.3.6.1.2.1.25.3.3.1.2.1", $community);$cpuLoad = $rawCpu ? intval(filter_var($rawCpu, FILTER_SANITIZE_NUMBER_INT)) : 0;
 
-        // c) Memória
         $rawMemTotal = getSnmpData($ip, "1.3.6.1.4.1.2021.4.5.0", $community);
         $rawMemAvail = getSnmpData($ip, "1.3.6.1.4.1.2021.4.6.0", $community);$memTotal = $rawMemTotal ? intval(filter_var($rawMemTotal, FILTER_SANITIZE_NUMBER_INT)) * 1024 : 0;
         $memAvail = $rawMemAvail ? intval(filter_var($rawMemAvail, FILTER_SANITIZE_NUMBER_INT)) * 1024 : 0;
         $memUsed = $memTotal -$memAvail;
         $memPercent =$memTotal > 0 ? round(($memUsed / $memTotal) * 100, 1) : 0;
 
-        // d) Rede
         $inOctets = getSnmpData($ip, "1.3.6.1.2.1.2.2.1.10.2", $community);$outOctets = getSnmpData($ip, "1.3.6.1.2.1.2.2.1.13.2", $community);
         $netIn =$inOctets ? formatBytes(filter_var($inOctets, FILTER_SANITIZE_NUMBER_INT)) : '0 bytes';$netOut = $outOctets ? formatBytes(filter_var($outOctets, FILTER_SANITIZE_NUMBER_INT)) : '0 bytes';
 
-        // e) Disco
         $diskSizeRaw = getSnmpData($ip, "1.3.6.1.2.1.25.2.3.1.5.31", $community);$diskUsedRaw = getSnmpData($ip, "1.3.6.1.2.1.25.2.3.1.6.31", $community);
         $diskAlloc   = getSnmpData($ip, "1.3.6.1.2.1.25.2.3.1.4.31", $community);$unitSize = $diskAlloc ? intval(filter_var($diskAlloc, FILTER_SANITIZE_NUMBER_INT)) : 4096;
         $diskTotalBytes =$diskSizeRaw ? intval(filter_var($diskSizeRaw, FILTER_SANITIZE_NUMBER_INT)) *$unitSize : 0;
