@@ -1,14 +1,11 @@
-<?php
 /**
- * NMS - Network Management System (PHP + SNMP via shell_exec)
- * Atividade TI Aplicada - Dashboard SNMP
- *
- * Requisitos no host: snmp-utils (snmpget, snmpwalk, snmpbulkwalk)
- *   sudo apt-get install -y snmp
- *
- * Uso: coloque este arquivo em /var/www/html/nms/index.php
- *      acesse: http://<IP-VM>/nms
- */
+Victor Hugo Vieira Cruz
+Júlia Monteiro 
+Débora
+Renan 
+*/
+
+<?php
 
 // ======================== CONFIGURAÇÃO ========================
 $STATIONS = [
