@@ -30,6 +30,7 @@ if (isset($_GET['ajax']) &&$_GET['ajax'] == '1') {
         else return $bytes . ' bytes';
     }
 
+
     $results = [];
     foreach ($stations as$st) {
         $ip =$st["ip"];
